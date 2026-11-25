@@ -1,5 +1,7 @@
 import { BIOMES, getBiomeById } from '../data/biomes.js';
 import { ANIMALS, getAnimalsByBiome, getAnimalById } from '../data/animals.js';
+import { getIconSvg, hydrateStaticIcons } from './AnimatedIcons.js';
+import { initButtonEffects } from './ButtonEffects.js';
 
 /**
  * 儿童友好绘本风 UI 管理器（星球浮标、动物交互卡、语音输入、图鉴、DeepSeek 成本测试面板）
@@ -18,6 +20,8 @@ export class UIManager {
     this.toastTimer = null;
 
     this._cacheDom();
+    hydrateStaticIcons(document);
+    initButtonEffects();
     this._renderBiomeDock();
     this._bindEvents();
     this._syncDiscoveryCounter();
@@ -108,8 +112,9 @@ export class UIManager {
       btn.style.setProperty('--biome-accent', b.accentColor);
       const ids = getAnimalsByBiome(b.id).map((a) => a.id);
       const found = this.storage.getBiomeDiscoveredCount(ids);
+      const badgeSvg = getIconSvg(`biome-${b.id}`) || b.emoji;
       btn.innerHTML = `
-        <span class="bp-emoji">${b.emoji}</span>
+        <span class="bp-icon">${badgeSvg}</span>
         <span class="bp-text">
           <strong>${b.name}</strong>
           <small>${found}/${ids.length} 伙伴</small>
@@ -127,7 +132,7 @@ export class UIManager {
 
     this.el.btnDayNight.addEventListener('click', () => {
       const isNight = this.handlers.onToggleDayNight();
-      this.el.dayNightIcon.textContent = isNight ? '🌙' : '☀️';
+      this.el.dayNightIcon.innerHTML = getIconSvg(isNight ? 'moon' : 'sun');
       this.el.dayNightLabel.textContent = isNight ? '夜晚' : '白天';
       this.el.btnDayNight.classList.toggle('is-night', isNight);
       this.showToast(isNight ? '🌙 夜幕降临，小动物们准备打盹儿啦' : '☀️ 太阳出来啦，小动物们精神满满！');
@@ -136,7 +141,8 @@ export class UIManager {
     this.el.btnSound.addEventListener('click', () => {
       const next = !this.audio.enabled;
       this.audio.setEnabled(next);
-      this.el.soundIcon.textContent = next ? '🔊' : '🔇';
+      this.el.soundIcon.innerHTML = getIconSvg(next ? 'sound-on' : 'sound-off');
+      this.el.btnSound.classList.toggle('is-muted', !next);
       if (next) this.audio.playSfx('pop');
       this.showToast(next ? '🔊 语音与音效已打开' : '🔇 已静音');
     });

@@ -41,11 +41,11 @@
       <header class="top-hud">
         <div class="hud-left">
           <button id="btn-back-planet" class="toy-btn toy-btn-sky hidden" aria-label="返回 3D 星球">
-            <span class="btn-icon">🌍</span>
+            <span class="btn-icon" data-svg-icon="back-planet"></span>
             <span class="btn-label">回星球</span>
           </button>
           <div id="brand-badge" class="brand-badge">
-            <span class="brand-globe">🐾</span>
+            <span class="brand-globe" data-svg-icon="brand"></span>
             <div class="brand-copy">
               <h1>万象星野</h1>
               <p id="scene-subtitle">滑动旋转星球，点一个地方进去玩吧！</p>
@@ -55,18 +55,18 @@
 
         <div class="hud-right">
           <button id="btn-day-night" class="toy-btn toy-btn-sun" title="切换白天或夜晚">
-            <span class="btn-icon" id="day-night-icon">☀️</span>
+            <span class="btn-icon" id="day-night-icon" data-svg-icon="sun"></span>
             <span class="btn-label" id="day-night-label">白天</span>
           </button>
           <button id="btn-sound" class="toy-btn toy-btn-cream" title="开关语音与音效">
-            <span class="btn-icon" id="sound-icon">🔊</span>
+            <span class="btn-icon" id="sound-icon" data-svg-icon="sound-on"></span>
           </button>
           <button id="btn-encyclopedia" class="toy-btn toy-btn-honey" title="打开动物图鉴">
-            <span class="btn-icon">📖</span>
+            <span class="btn-icon" data-svg-icon="book"></span>
             <span class="btn-label">图鉴 <strong id="discovered-count">0/20</strong></span>
           </button>
           <button id="btn-dev-lab" class="toy-btn toy-btn-subtle" title="家长/开发者：DeepSeek AI 成本测试">
-            <span class="btn-icon">⚙️</span>
+            <span class="btn-icon" data-svg-icon="compass"></span>
             <span class="btn-label">AI测试</span>
           </button>
         </div>
@@ -98,8 +98,12 @@
             </div>
           </div>
           <div class="header-actions">
-            <button id="btn-replay-voice" class="icon-circle-btn" title="再听一遍语音">🔊</button>
-            <button id="btn-close-card" class="icon-circle-btn close-btn" title="让它继续玩耍">✕</button>
+            <button id="btn-replay-voice" class="icon-circle-btn" title="再听一遍语音">
+              <span class="btn-icon-sm" data-svg-icon="sound-on"></span>
+            </button>
+            <button id="btn-close-card" class="icon-circle-btn close-btn" title="让它继续玩耍">
+              <span class="btn-icon-sm" data-svg-icon="close"></span>
+            </button>
           </div>
         </div>
 
@@ -114,29 +118,41 @@
         <!-- 预设四大话题按钮 -->
         <div class="topic-grid" id="topic-grid">
           <button class="topic-btn" data-topic="intro">
-            <span class="t-emoji">👋</span>
+            <span class="t-icon" data-svg-icon="topic-intro"></span>
             <span>认识我</span>
           </button>
           <button class="topic-btn" data-topic="food">
-            <span class="t-emoji">🍎</span>
+            <span class="t-icon" data-svg-icon="topic-food"></span>
             <span>爱吃啥</span>
           </button>
           <button class="topic-btn" data-topic="trick">
-            <span class="t-emoji">🌟</span>
+            <span class="t-icon" data-svg-icon="topic-trick"></span>
             <span>看绝活</span>
           </button>
           <button class="topic-btn" data-topic="secret">
-            <span class="t-emoji">💡</span>
+            <span class="t-icon" data-svg-icon="topic-secret"></span>
             <span>小秘密</span>
           </button>
         </div>
 
         <!-- 趣味互动 + 预留 AI 问答切换 -->
         <div class="action-bar">
-          <button id="btn-pet" class="action-pill pill-coral">🖐️ 摸摸头</button>
-          <button id="btn-feed" class="action-pill pill-mint">🧺 喂零食</button>
-          <button id="btn-photo" class="action-pill pill-sky">📸 拍一张</button>
-          <button id="btn-toggle-ai" class="action-pill pill-ai">🤖 问它问题</button>
+          <button id="btn-pet" class="action-pill pill-coral">
+            <span class="a-icon" data-svg-icon="action-pet"></span>
+            <span>摸摸头</span>
+          </button>
+          <button id="btn-feed" class="action-pill pill-mint">
+            <span class="a-icon" data-svg-icon="action-feed"></span>
+            <span>喂零食</span>
+          </button>
+          <button id="btn-photo" class="action-pill pill-sky">
+            <span class="a-icon" data-svg-icon="action-photo"></span>
+            <span>拍一张</span>
+          </button>
+          <button id="btn-toggle-ai" class="action-pill pill-ai">
+            <span class="a-icon" data-svg-icon="action-ai"></span>
+            <span>问它问题</span>
+          </button>
         </div>
 
         <!-- AI 自由提问抽屉（支持 DeepSeek API / 本地模拟） -->
@@ -147,7 +163,9 @@
           </div>
           <div class="ai-quick-chips" id="ai-quick-chips"></div>
           <form id="ai-chat-form" class="ai-input-row">
-            <button type="button" id="btn-mic" class="mic-btn" title="语音提问">🎤</button>
+            <button type="button" id="btn-mic" class="mic-btn" title="语音提问">
+              <span class="btn-icon-sm" data-svg-icon="mic"></span>
+            </button>
             <input
               id="ai-question-input"
               type="text"
@@ -166,9 +184,11 @@
           <div class="modal-header">
             <div>
               <h2>📖 我的星球动物图鉴</h2>
-              <p id="encyclopedia-summary">已认识 0 / 12 位动物朋友 · 收集星星 ⭐ 0</p>
+              <p id="encyclopedia-summary">已认识 0 / 20 位动物朋友 · 收集星星 ⭐ 0</p>
             </div>
-            <button class="icon-circle-btn close-btn" data-close-modal="modal-encyclopedia">✕</button>
+            <button class="icon-circle-btn close-btn" data-close-modal="modal-encyclopedia">
+              <span class="btn-icon-sm" data-svg-icon="close"></span>
+            </button>
           </div>
           <div id="encyclopedia-grid" class="encyclopedia-grid"></div>
         </div>
