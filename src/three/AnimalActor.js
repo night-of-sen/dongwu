@@ -483,7 +483,7 @@ export class AnimalActor {
    * 检查某地面/水面坐标是否完全安全（不与任何树木/石头/水池/沙滩或岛屿边缘穿模）
    */
   _isPositionClear(x, z, obstacles, margin = 0.35) {
-    const maxR = 5.4 - this.bodyRadius;
+    const maxR = 9.4 - this.bodyRadius;
     if (x * x + z * z > maxR * maxR) return false;
     for (const obs of obstacles) {
       const minD = obs.radius + this.bodyRadius + margin;
@@ -495,10 +495,10 @@ export class AnimalActor {
   }
 
   _findSafeRandomTarget(obstacles) {
-    const maxR = Math.min(this.config.wanderRadius || 4.3, 5.2 - this.bodyRadius);
+    const maxR = Math.min(this.config.wanderRadius || 7.5, 9.1 - this.bodyRadius);
     for (let attempt = 0; attempt < 24; attempt++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 0.6 + Math.random() * (maxR - 0.6);
+      const r = 1.0 + Math.random() * Math.max(1.2, maxR - 1.0);
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
       if (this._isPositionClear(x, z, obstacles, 0.4)) {
@@ -605,8 +605,8 @@ export class AnimalActor {
       }
     }
 
-    // 3. 限制在岛屿安全边界内，防止掉出悬崖或穿到岛外
-    const maxR = 5.55 - this.bodyRadius;
+    // 3. 限制在宽敞岛屿安全边界内，防止掉出悬崖或穿到岛外
+    const maxR = 9.6 - this.bodyRadius;
     const rSq = pos.x * pos.x + pos.z * pos.z;
     if (rSq > maxR * maxR) {
       const r = Math.sqrt(rSq);

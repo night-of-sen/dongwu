@@ -17,6 +17,9 @@ const world = new WorldManager(container, {
     audio.stopSpeaking();
     ui.showTransition(biome);
   },
+  onLoadProgress: (biome, loaded, total) => {
+    ui?.updateTransitionProgress(biome, loaded, total);
+  },
   onTransitionEnd: () => {
     ui.hideTransition();
   },

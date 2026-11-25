@@ -4,11 +4,36 @@ import { assetUrl } from '../utils/assetUrl.js';
 const texLoader = new THREE.TextureLoader();
 const textureCache = new Map();
 
-function loadTiled(url, repeat, isColor = false) {
+const loadedTextures = new WeakSet();
+const pendingCallbacks = new Map();
+
+function loadTiled(url, repeat, isColor = false, onReady = null) {
   const resolved = assetUrl(url);
   const key = `${resolved}::${repeat}::${isColor}`;
-  if (textureCache.has(key)) return textureCache.get(key);
-  const tex = texLoader.load(resolved);
+  if (textureCache.has(key)) {
+    const cached = textureCache.get(key);
+    if (loadedTextures.has(cached)) {
+      onReady?.(cached);
+    } else if (onReady) {
+      pendingCallbacks.get(key)?.push(onReady);
+    }
+    return cached;
+  }
+  const cbs = onReady ? [onReady] : [];
+  pendingCallbacks.set(key, cbs);
+  const tex = texLoader.load(
+    resolved,
+    (loaded) => {
+      loadedTextures.add(loaded);
+      const list = pendingCallbacks.get(key) || [];
+      pendingCallbacks.delete(key);
+      list.forEach((fn) => fn(loaded));
+    },
+    undefined,
+    () => {
+      pendingCallbacks.delete(key);
+    }
+  );
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(repeat, repeat);
@@ -19,23 +44,35 @@ function loadTiled(url, repeat, isColor = false) {
 }
 
 /**
- * 加载 Poly Haven 真实 1K 摄影级 CC0 PBR 地表与岩壁材质（漫反射 + 法线 + 粗糙度）
+ * 加载 Poly Haven 真实 1K 摄影级 CC0 PBR 地表与岩壁材质（加载完成前先显示生态底色，彻底杜绝弱网黑地）
  */
-export function createRealPBRMaterial(alias, { repeat = 4.5, normalScale = 0.85, roughness = 0.92, color = 0xffffff } = {}) {
-  const map = loadTiled(`/textures/pbr/${alias}_diff.jpg`, repeat, true);
-  const normalMap = loadTiled(`/textures/pbr/${alias}_nor.jpg`, repeat, false);
-  const roughnessMap = loadTiled(`/textures/pbr/${alias}_rough.jpg`, repeat, false);
-
-  return new THREE.MeshStandardMaterial({
-    color,
-    map,
-    normalMap,
+export function createRealPBRMaterial(
+  alias,
+  { repeat = 4.5, normalScale = 0.85, roughness = 0.92, color = 0xffffff, fallbackColor = null } = {}
+) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: fallbackColor ?? color,
     normalScale: new THREE.Vector2(normalScale, normalScale),
-    roughnessMap,
     roughness,
     metalness: 0.02,
     envMapIntensity: 0.72,
   });
+
+  loadTiled(`/textures/pbr/${alias}_diff.jpg`, repeat, true, (tex) => {
+    mat.map = tex;
+    mat.color.setHex(color);
+    mat.needsUpdate = true;
+  });
+  loadTiled(`/textures/pbr/${alias}_nor.jpg`, repeat, false, (tex) => {
+    mat.normalMap = tex;
+    mat.needsUpdate = true;
+  });
+  loadTiled(`/textures/pbr/${alias}_rough.jpg`, repeat, false, (tex) => {
+    mat.roughnessMap = tex;
+    mat.needsUpdate = true;
+  });
+
+  return mat;
 }
 
 /**

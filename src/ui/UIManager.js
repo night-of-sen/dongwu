@@ -264,12 +264,22 @@ export class UIManager {
     this.el.transitionVeil.classList.add('active');
   }
 
+  updateTransitionProgress(biome, loaded, total) {
+    if (!biome || !total) return;
+    if (loaded >= total) {
+      this.el.transitionText.textContent = `到达 ${biome.name}！准备出发 ✨`;
+    } else {
+      this.el.transitionText.textContent = `正在唤醒 ${biome.name} 的小动物 (${loaded}/${total})...`;
+    }
+  }
+
   hideTransition() {
     this.el.transitionVeil.classList.remove('active');
   }
 
   setModePlanet() {
     this.currentAnimal = null;
+    document.getElementById('app')?.classList.remove('mode-habitat');
     this.el.btnBackPlanet.classList.add('hidden');
     this.el.planetDock.classList.remove('hidden');
     this.el.habitatTip.classList.add('hidden');
@@ -281,6 +291,7 @@ export class UIManager {
 
   setModeHabitat(biome) {
     this.currentAnimal = null;
+    document.getElementById('app')?.classList.add('mode-habitat');
     this.el.btnBackPlanet.classList.remove('hidden');
     this.el.planetDock.classList.add('hidden');
     this.el.habitatTip.classList.remove('hidden');

@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { getBiomeById } from '../data/biomes.js';
+import { getAnimalsByBiome } from '../data/animals.js';
 import { assetUrl } from '../utils/assetUrl.js';
+import { prefetchGLTFs } from './ModelLoader.js';
 import { PlanetScene } from './PlanetScene.js';
 import { HabitatScene } from './HabitatScene.js';
 
 /**
- * 3D 引擎总控：渲染器、Poly Haven 真实户外 HDRI 光照、昼夜切换、视锥偏移防遮挡运镜与射线拾取
+ * 3D 引擎总控：渲染器、Poly Haven 真实户外 HDRI 光照、昼夜切换、手机/iPad 自适应运镜、双指缩放与射线拾取
  */
 export class WorldManager {
   constructor(container, callbacks = {}) {
@@ -17,9 +19,10 @@ export class WorldManager {
     this.mode = 'planet'; // 'planet' | 'habitat'
     this.isNight = false;
     this.isTransitioning = false;
+    this._nightHdriRequested = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(44, 1, 0.1, 120);
+    this.camera = new THREE.PerspectiveCamera(44, 1, 0.1, 160);
     this.camera.position.set(0, 0.5, 9.6);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -34,14 +37,14 @@ export class WorldManager {
     this.renderer.toneMappingExposure = 0.96;
     container.appendChild(this.renderer.domElement);
 
-    // 真实户外 HDRI 环境光（加载前先用轻量环境图过渡，不阻塞首帧）
+    // 真实户外 HDRI 环境光（首帧先用轻量环境图过渡，400ms 后加载白天 HDRI，夜间 HDRI 按需加载节省 1.7MB 流量）
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.pmrem.compileEquirectangularShader();
     this.dayEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.nightEnvTex = this.dayEnvTex;
     this.scene.environment = this.dayEnvTex;
     this.scene.environmentIntensity = 0.72;
-    this._loadRealHDRIs();
+    setTimeout(() => this._loadDayHDRI(), 400);
 
     this._setupSkyAndLights();
 
@@ -61,10 +64,13 @@ export class WorldManager {
 
     this.orbitYaw = 0.65;
     this.orbitPitch = 0.48;
-    this.orbitDist = 11.4;
+    this.orbitDist = 17.5;
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
+    this.activePointers = new Map();
+    this.pinchStartDist = 0;
+    this.pinchStartOrbit = 17.5;
     this.isDragging = false;
     this.dragMoved = 0;
     this.lastX = 0;
@@ -72,11 +78,17 @@ export class WorldManager {
 
     this.clock = new THREE.Clock();
     this._bindEvents();
-    this._onResize();
+    this._onResize(true);
     this._animate();
+
+    // 首屏渲染稳定后，悄悄后台预热首个推荐板块（阳光草甸）的轻量化动物模型，点击进入秒开！
+    setTimeout(() => {
+      const meadowAnimals = getAnimalsByBiome('meadow').map((a) => a.glbUrl);
+      prefetchGLTFs(meadowAnimals);
+    }, 1200);
   }
 
-  _loadRealHDRIs() {
+  _loadDayHDRI() {
     const rgbe = new RGBELoader();
     rgbe.load(
       assetUrl('/hdr/day_sky.hdr'),
@@ -88,6 +100,12 @@ export class WorldManager {
       undefined,
       () => {}
     );
+  }
+
+  _ensureNightHDRI() {
+    if (this._nightHdriRequested) return;
+    this._nightHdriRequested = true;
+    const rgbe = new RGBELoader();
     rgbe.load(
       assetUrl('/hdr/night_sky.hdr'),
       (hdr) => {
@@ -136,12 +154,12 @@ export class WorldManager {
     this.scene.add(this.hemiLight);
 
     this.sunLight = new THREE.DirectionalLight(0xfff4d6, 2.15);
-    this.sunLight.position.set(10, 15, 9);
+    this.sunLight.position.set(14, 19, 12);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.camera.near = 2;
-    this.sunLight.shadow.camera.far = 42;
-    const d = 10;
+    this.sunLight.shadow.camera.far = 54;
+    const d = 14.5;
     this.sunLight.shadow.camera.left = -d;
     this.sunLight.shadow.camera.right = d;
     this.sunLight.shadow.camera.top = d;
@@ -151,13 +169,14 @@ export class WorldManager {
     this.scene.add(this.sunLight);
 
     this.rimLight = new THREE.DirectionalLight(0x8bc9ff, 0.35);
-    this.rimLight.position.set(-9, 7, -10);
+    this.rimLight.position.set(-12, 9, -12);
     this.scene.add(this.rimLight);
   }
 
   _applyAtmosphere() {
     const b = this.currentBiome;
     if (this.isNight) {
+      this._ensureNightHDRI();
       this.skyUniforms.topColor.value.setHex(b ? b.skyNightTop : 0x0b1836);
       this.skyUniforms.bottomColor.value.setHex(b ? b.skyNightBottom : 0x203860);
       this.scene.environment = this.nightEnvTex;
@@ -188,7 +207,36 @@ export class WorldManager {
   }
 
   /**
-   * 聚焦星球到某个地块并进入其 3D 微景观场景
+   * 根据屏幕宽高比（手机竖屏 / iPad 竖横屏 / 桌面）计算星球与大陆的自适应相机位置
+   */
+  _getPlanetFraming() {
+    const aspect = this.camera.aspect || 1;
+    if (aspect < 0.72) {
+      // 手机竖屏：拉远镜头并将星球微微上移，彻底避免两侧裁切与底部 3x2 板块栏遮挡
+      const z = THREE.MathUtils.clamp(8.6 / Math.max(0.45, aspect), 12.8, 16.5);
+      return { pos: new THREE.Vector3(0, 0.15, z), look: new THREE.Vector3(0, -0.58, 0) };
+    }
+    if (aspect < 1.05) {
+      // iPad 竖屏或窄屏
+      const z = THREE.MathUtils.clamp(9.6 / Math.max(0.72, aspect), 10.6, 13.0);
+      return { pos: new THREE.Vector3(0, 0.35, z), look: new THREE.Vector3(0, -0.28, 0) };
+    }
+    return { pos: new THREE.Vector3(0, 0.5, 9.6), look: new THREE.Vector3(0, 0, 0) };
+  }
+
+  _getDefaultHabitatOrbit() {
+    const aspect = this.camera.aspect || 1;
+    if (aspect < 0.72) {
+      return { dist: 26.0, pitch: 0.54 };
+    }
+    if (aspect < 1.05) {
+      return { dist: 21.5, pitch: 0.5 };
+    }
+    return { dist: 17.5, pitch: 0.45 };
+  }
+
+  /**
+   * 聚焦星球到某个地块并进入其 3D 微景观场景（点击瞬间并行预加载模型，大幅缩短等待）
    */
   focusAndEnterBiome(biomeId, onReady) {
     if (this.isTransitioning) return;
@@ -197,6 +245,8 @@ export class WorldManager {
 
     this.isTransitioning = true;
     this.planetScene.focusBiome(biomeId);
+    // 立即并行预热该板块动物模型，转场动画与模型下载重叠进行！
+    prefetchGLTFs(getAnimalsByBiome(biomeId).map((a) => a.glbUrl));
     // 镜头向前俯冲接近星球表面
     this.camPosTarget.set(0, 0.1, 6.2);
 
@@ -206,12 +256,12 @@ export class WorldManager {
       this._switchToHabitat(biome);
       onReady?.(biome);
       const ready = this.habitatScene?.readyPromise || Promise.resolve();
-      await Promise.race([ready, new Promise((r) => setTimeout(r, 6000))]);
+      await Promise.race([ready, new Promise((r) => setTimeout(r, 8000))]);
       setTimeout(() => {
         this.isTransitioning = false;
         this.callbacks.onTransitionEnd?.(biome);
-      }, 220);
-    }, 480);
+      }, 180);
+    }, 380);
   }
 
   _switchToHabitat(biome) {
@@ -224,15 +274,18 @@ export class WorldManager {
     if (this.habitatScene) {
       this.scene.remove(this.habitatScene.root);
     }
-    this.habitatScene = new HabitatScene(biome);
+    this.habitatScene = new HabitatScene(biome, (loaded, total) => {
+      this.callbacks.onLoadProgress?.(biome, loaded, total);
+    });
     this.habitatScene.setNightMode(this.isNight);
     this.scene.add(this.habitatScene.root);
 
+    const orbit = this._getDefaultHabitatOrbit();
     this.orbitYaw = 0.62;
-    this.orbitPitch = 0.44;
-    this.orbitDist = 11.4;
+    this.orbitPitch = orbit.pitch;
+    this.orbitDist = orbit.dist;
     this._updateHabitatOrbitTarget();
-    this.camera.position.copy(this.camPosTarget).add(new THREE.Vector3(0, 3.5, 3.5));
+    this.camera.position.copy(this.camPosTarget).add(new THREE.Vector3(0, 4.0, 4.0));
     this.camLookCurrent.set(0, 0.4, 0);
     this._applyAtmosphere();
   }
@@ -255,16 +308,17 @@ export class WorldManager {
       }
       this.planetScene.root.visible = true;
       this.planetScene.targetRot = null;
-      this.camPosTarget.set(0, 0.5, 9.6);
-      this.camLookTarget.set(0, 0, 0);
+      const framing = this._getPlanetFraming();
+      this.camPosTarget.copy(framing.pos);
+      this.camLookTarget.copy(framing.look);
       this._applyAtmosphere();
       onReady?.();
 
       setTimeout(() => {
         this.isTransitioning = false;
         this.callbacks.onTransitionEnd?.(null);
-      }, 260);
-    }, 440);
+      }, 240);
+    }, 400);
   }
 
   selectAnimal(animalId) {
@@ -277,11 +331,13 @@ export class WorldManager {
     }
     this.selectedActor = actor;
 
-    // 根据真实加载后的模型高度与半径动态计算不穿模特写距与机位，并避开树木/岩石遮挡
+    // 根据真实加载后的模型高度、半径与屏幕横竖比动态计算不穿模、不裁切的特写机位
     const pos = actor.group.position;
     const h = actor.modelHeight || 1.4;
     const r = actor.bodyRadius || 0.7;
-    const dist = Math.max(3.2, r * 2.8 + h * 1.15);
+    const aspect = this.camera.aspect || 1;
+    const portraitMul = aspect < 0.72 ? 1.32 : aspect < 1.05 ? 1.14 : 1.0;
+    const dist = Math.max(3.4, r * 2.8 + h * 1.15) * portraitMul;
     const camY = Math.max(1.45, h * 0.95 + 0.55);
 
     const obstacles = this.habitatScene.obstacles || [];
@@ -310,9 +366,9 @@ export class WorldManager {
         minClearance = Math.min(minClearance, dEnd, dMid);
       }
 
-      // 偏好靠近当前观察方向、远离障碍物、且机位视野开阔
+      // 偏好靠近当前观察方向、远离障碍物、且机位在宽敞岛屿视野开阔处
       const alignScore = dx * currentCamDir.x + dz * currentCamDir.y;
-      const centerBonus = Math.hypot(cx, cz) < 6.8 ? 0.6 : -0.3;
+      const centerBonus = Math.hypot(cx, cz) < 10.4 ? 0.6 : -0.3;
       const clearanceScore = minClearance < 0.5 ? minClearance * 4 - 4 : Math.min(2.2, minClearance);
       const score = clearanceScore + alignScore * 0.8 + centerBonus;
 
@@ -325,8 +381,10 @@ export class WorldManager {
     this.camPosTarget.copy(bestPos);
     // 视线正对动物身体中心，配合下方 setViewOffset 将动物整体抬升至上半屏空旷区域，完全不被对话栏遮挡
     this.camLookTarget.set(pos.x, Math.max(0.45, h * 0.52), pos.z);
+    const viewW = this.container.clientWidth || window.innerWidth;
     const viewH = this.container.clientHeight || window.innerHeight;
-    this.viewOffsetTargetY = Math.round(viewH * 0.21);
+    const offsetFactor = viewW <= 640 ? 0.165 : viewW <= 1024 ? 0.185 : 0.21;
+    this.viewOffsetTargetY = Math.round(viewH * offsetFactor);
 
     actor.enterInteraction(this.camPosTarget);
     return actor;
@@ -373,7 +431,7 @@ export class WorldManager {
     const r = this.orbitDist;
     const y = Math.sin(this.orbitPitch) * r;
     const horiz = Math.cos(this.orbitPitch) * r;
-    this.camPosTarget.set(Math.sin(this.orbitYaw) * horiz, Math.max(2.0, y), Math.cos(this.orbitYaw) * horiz);
+    this.camPosTarget.set(Math.sin(this.orbitYaw) * horiz, Math.max(2.2, y), Math.cos(this.orbitYaw) * horiz);
     this.camLookTarget.set(0, 0.5, 0);
   }
 
@@ -386,17 +444,50 @@ export class WorldManager {
       this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     };
 
+    const getPinchDistance = () => {
+      const pts = Array.from(this.activePointers.values());
+      if (pts.length < 2) return 0;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
+
     el.addEventListener('pointerdown', (e) => {
       if (this.isTransitioning) return;
-      this.isDragging = true;
-      this.dragMoved = 0;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture?.(e.pointerId);
+
+      if (this.activePointers.size === 2) {
+        this.isDragging = false;
+        this.dragMoved = 999;
+        this.pinchStartDist = getPinchDistance();
+        this.pinchStartOrbit = this.orbitDist;
+        return;
+      }
+
+      if (this.activePointers.size === 1) {
+        this.isDragging = true;
+        this.dragMoved = 0;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+      }
     });
 
     el.addEventListener('pointermove', (e) => {
       getPointerNDC(e.clientX, e.clientY);
+
+      if (this.activePointers.has(e.pointerId)) {
+        this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
+
+      // 手机/iPad 双指捏合缩放宽敞大陆视角
+      if (this.activePointers.size === 2) {
+        if (this.mode === 'habitat' && !this.selectedActor && this.pinchStartDist > 10) {
+          const curDist = getPinchDistance();
+          const scale = this.pinchStartDist / Math.max(10, curDist);
+          this.orbitDist = THREE.MathUtils.clamp(this.pinchStartOrbit * scale, 8.5, 31.0);
+          this._updateHabitatOrbitTarget();
+        }
+        return;
+      }
 
       if (this.isDragging) {
         const dx = e.clientX - this.lastX;
@@ -409,7 +500,7 @@ export class WorldManager {
           this.planetScene.applyDrag(dx, dy);
         } else if (this.mode === 'habitat' && !this.selectedActor) {
           this.orbitYaw -= dx * 0.007;
-          this.orbitPitch = THREE.MathUtils.clamp(this.orbitPitch + dy * 0.005, 0.22, 1.05);
+          this.orbitPitch = THREE.MathUtils.clamp(this.orbitPitch + dy * 0.005, 0.22, 1.08);
           this._updateHabitatOrbitTarget();
         }
         return;
@@ -419,31 +510,41 @@ export class WorldManager {
     });
 
     const onPointerEnd = (e) => {
+      this.activePointers.delete(e.pointerId);
+      if (this.activePointers.size > 0) {
+        // 从双指回落到单指时重置锚点，避免镜头跳动
+        const [remaining] = this.activePointers.values();
+        this.lastX = remaining.x;
+        this.lastY = remaining.y;
+        this.isDragging = true;
+        return;
+      }
       if (!this.isDragging) return;
       this.isDragging = false;
-      if (this.dragMoved < 9 && !this.isTransitioning) {
+      if (this.dragMoved < 10 && !this.isTransitioning) {
         getPointerNDC(e.clientX, e.clientY);
         this._handleClick();
       }
     };
 
     el.addEventListener('pointerup', onPointerEnd);
-    el.addEventListener('pointercancel', () => {
-      this.isDragging = false;
+    el.addEventListener('pointercancel', (e) => {
+      this.activePointers.delete(e.pointerId);
+      if (this.activePointers.size === 0) this.isDragging = false;
     });
 
     el.addEventListener(
       'wheel',
       (e) => {
         if (this.mode === 'habitat' && !this.selectedActor) {
-          this.orbitDist = THREE.MathUtils.clamp(this.orbitDist + e.deltaY * 0.008, 7.2, 15.5);
+          this.orbitDist = THREE.MathUtils.clamp(this.orbitDist + e.deltaY * 0.012, 8.5, 31.0);
           this._updateHabitatOrbitTarget();
         }
       },
       { passive: true }
     );
 
-    window.addEventListener('resize', () => this._onResize());
+    window.addEventListener('resize', () => this._onResize(false));
   }
 
   _handleHover() {
@@ -483,13 +584,31 @@ export class WorldManager {
     }
   }
 
-  _onResize() {
+  _onResize(immediate = false) {
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
     this.camera.aspect = w / h;
-    if (this.selectedActor) {
-      this.viewOffsetTargetY = Math.round(h * 0.21);
+
+    if (this.mode === 'planet' && !this.isTransitioning) {
+      const framing = this._getPlanetFraming();
+      this.camPosTarget.copy(framing.pos);
+      this.camLookTarget.copy(framing.look);
+      if (immediate) {
+        this.camera.position.copy(framing.pos);
+        this.camLookCurrent.copy(framing.look);
+      }
+    } else if (this.mode === 'habitat') {
+      if (this.selectedActor) {
+        const offsetFactor = w <= 640 ? 0.165 : w <= 1024 ? 0.185 : 0.21;
+        this.viewOffsetTargetY = Math.round(h * offsetFactor);
+      } else {
+        const orbit = this._getDefaultHabitatOrbit();
+        this.orbitDist = orbit.dist;
+        this.orbitPitch = orbit.pitch;
+        this._updateHabitatOrbitTarget();
+      }
     }
+
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
   }

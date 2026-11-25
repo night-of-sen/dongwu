@@ -140,13 +140,13 @@ body,
 /* 顶部导航栏 */
 .top-hud {
   position: fixed;
-  top: 14px;
-  left: 16px;
-  right: 16px;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   z-index: 20;
   pointer-events: none;
 }
@@ -155,21 +155,27 @@ body,
 .hud-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
   pointer-events: auto;
+  min-width: 0;
+}
+
+.hud-right {
+  flex-shrink: 0;
 }
 
 .brand-badge {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 16px 8px 11px;
+  padding: 7px 15px 7px 10px;
   background: rgba(255, 253, 247, 0.92);
   backdrop-filter: blur(8px);
   border-radius: var(--radius-pill);
   border: 2.5px solid #ffffff;
   box-shadow: 0 8px 20px rgba(24, 48, 76, 0.14);
+  min-width: 0;
 }
 
 .brand-globe {
@@ -180,6 +186,11 @@ body,
   border-radius: 50%;
   background: #ffe9b5;
   font-size: 21px;
+  flex-shrink: 0;
+}
+
+.brand-copy {
+  min-width: 0;
 }
 
 .brand-copy h1 {
@@ -188,6 +199,7 @@ body,
   line-height: 1.1;
   font-weight: 900;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .brand-copy p {
@@ -195,6 +207,10 @@ body,
   font-size: 12px;
   color: var(--ink-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
 }
 
 /* 积木感触觉按钮 */
@@ -1128,30 +1144,6 @@ body,
   text-overflow: ellipsis;
 }
 
-@media (max-width: 720px) {
-  .brand-copy p,
-  .toy-btn .btn-label {
-    display: none;
-  }
-  .btn-label#day-night-label {
-    display: none;
-  }
-  .form-grid,
-  .pricing-grid,
-  .metrics-strip {
-    grid-template-columns: 1fr 1fr;
-  }
-  .topic-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .animal-card {
-    padding: 13px 14px;
-  }
-  .biome-pill {
-    padding: 7px 11px;
-  }
-}
-
 /* ==========================================================================
    定制手绘绘本风 3D 动态按钮体系 + 专属 SVG 微动效 + 点击星光涟漪特效
    ========================================================================== */
@@ -1623,5 +1615,404 @@ body,
   .action-pill::after,
   .topic-btn::after {
     animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   全尺寸响应式适配：iPad 竖横屏 (641px–1024px) / 手机竖屏 (<=640px) / 手机横屏
+   ========================================================================== */
+
+/* 中等屏幕 & iPad 横/竖屏 (<= 1024px) */
+@media (max-width: 1024px) {
+  .top-hud {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(14px, env(safe-area-inset-left));
+    right: max(14px, env(safe-area-inset-right));
+  }
+
+  .brand-copy p {
+    max-width: 210px;
+  }
+
+  .toy-btn {
+    padding: 8px 12px;
+    font-size: 13.5px;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .planet-dock {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: min(640px, calc(100vw - 28px));
+  }
+
+  .biome-pills {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+    width: 100%;
+    max-width: 640px;
+  }
+
+  .biome-pill {
+    padding: 9px 12px;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .bp-text strong,
+  .bp-text small {
+    white-space: nowrap;
+  }
+
+  .habitat-tip {
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+
+  .animal-card {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(560px, calc(100vw - 28px));
+  }
+}
+
+/* iPad 竖屏窄态 (641px – 840px)：隐藏副标题确保顶部单行不挤压 */
+@media (max-width: 840px) {
+  .brand-copy p {
+    display: none;
+  }
+
+  .brand-badge {
+    padding: 6px 14px 6px 8px;
+  }
+
+  .hud-right .toy-btn {
+    padding: 8px 11px;
+  }
+
+  .form-grid,
+  .pricing-grid,
+  .metrics-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* 手机竖屏 (<= 640px)：单行紧凑顶栏 + 底部 3×2 板块网格 + 不遮挡动物紧凑卡 */
+@media (max-width: 640px) {
+  .top-hud {
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    gap: 8px;
+  }
+
+  .hud-left,
+  .hud-right {
+    gap: 6px;
+  }
+
+  .brand-badge {
+    padding: 4px 12px 4px 5px;
+    gap: 7px;
+    border-width: 2px;
+  }
+
+  .brand-globe {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand-copy h1 {
+    font-size: 15px;
+  }
+
+  /* 进入生态大陆后，手机端隐藏品牌标，左侧留给清晰的「回星球」按钮，顶部永远单行不换行 */
+  #app.mode-habitat #brand-badge {
+    display: none;
+  }
+
+  #btn-back-planet {
+    padding: 7px 12px;
+    font-size: 13px;
+    gap: 5px;
+    border-radius: 999px;
+  }
+
+  #btn-back-planet .btn-label {
+    display: inline;
+  }
+
+  #btn-back-planet .btn-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 右侧四个工具按钮在手机上排成统一圆润图标胶囊，绝不换行或错位 */
+  .hud-right .toy-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .hud-right .toy-btn .btn-label {
+    display: none;
+  }
+
+  .hud-right .toy-btn .btn-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* 星球 3D 浮标在手机上精简尺寸，避免遮挡星球本体 */
+  .planet-float-badge {
+    padding: 5px 9px;
+    border-width: 2px;
+    border-radius: 13px;
+  }
+
+  .pf-top {
+    font-size: 12.5px;
+    gap: 4px;
+  }
+
+  .pf-count {
+    font-size: 10.5px;
+    padding: 1px 5px;
+  }
+
+  .pf-sub {
+    display: none;
+  }
+
+  /* 底部 6 大陆快捷栏：3 列 × 2 行紧凑精致网格（仅占底部 ~125px，完全不压住星球） */
+  .planet-dock {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: calc(100vw - 18px);
+    max-width: 420px;
+    gap: 6px;
+  }
+
+  .dock-hint {
+    font-size: 11.5px;
+    padding: 4px 11px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .biome-pills {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .biome-pill {
+    padding: 6px 6px;
+    gap: 5px;
+    border-radius: 14px;
+    border-width: 2px;
+    justify-content: flex-start;
+  }
+
+  .bp-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .bp-text strong {
+    font-size: 12.5px;
+  }
+
+  .bp-text small {
+    font-size: 10px;
+  }
+
+  /* 场景底部提示条 */
+  .habitat-tip {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    padding: 8px 14px;
+    font-size: 12.5px;
+    white-space: normal;
+    text-align: center;
+    max-width: calc(100vw - 24px);
+    line-height: 1.35;
+  }
+
+  /* 动物互动故事卡（手机端极致紧凑，留出上半屏大视野欣赏动物） */
+  .animal-card {
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: calc(100vw - 16px);
+    padding: 9px 11px;
+    border-radius: 18px;
+  }
+
+  .animal-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    border-radius: 10px;
+  }
+
+  .animal-name-row h2 {
+    font-size: 15px;
+  }
+
+  .species-tag,
+  .mood-tag {
+    font-size: 10.5px;
+    padding: 1px 6px;
+  }
+
+  .speech-bubble {
+    margin-top: 6px;
+    padding: 7px 10px;
+  }
+
+  .speech-bubble p {
+    font-size: 12.5px;
+    line-height: 1.42;
+    max-height: 76px;
+    overflow-y: auto;
+  }
+
+  .topic-grid {
+    margin-top: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .topic-btn {
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 3px;
+    font-size: 11px;
+    border-radius: 11px;
+  }
+
+  .t-icon {
+    width: 19px;
+    height: 19px;
+  }
+
+  .action-bar {
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .action-pill {
+    padding: 6px 3px;
+    font-size: 11px;
+    gap: 3px;
+    white-space: nowrap;
+  }
+
+  .a-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .toast {
+    top: max(58px, calc(env(safe-area-inset-top) + 48px));
+    font-size: 12.5px;
+    padding: 7px 14px;
+  }
+
+  .transition-emoji {
+    font-size: 46px;
+  }
+
+  .transition-text {
+    font-size: 17px;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .encyclopedia-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+}
+
+/* 超窄小屏手机 (<= 375px，如 iPhone SE / 小屏安卓) */
+@media (max-width: 375px) {
+  .hud-right .toy-btn {
+    width: 35px;
+    height: 35px;
+  }
+
+  .hud-right .toy-btn .btn-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .bp-icon {
+    width: 23px;
+    height: 23px;
+  }
+
+  .bp-text strong {
+    font-size: 11.5px;
+  }
+
+  .action-pill {
+    font-size: 10.5px;
+  }
+}
+
+/* 手机横屏低高度适配 (max-height: 480px) */
+@media (max-height: 480px) and (orientation: landscape) {
+  .top-hud {
+    top: 6px;
+  }
+
+  .brand-copy p,
+  .dock-hint {
+    display: none;
+  }
+
+  .planet-dock {
+    bottom: 8px;
+    width: min(760px, calc(100vw - 24px));
+  }
+
+  .biome-pills {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .biome-pill {
+    padding: 5px 6px;
+  }
+
+  .bp-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .bp-text strong {
+    font-size: 11.5px;
+  }
+
+  .bp-text small {
+    display: none;
+  }
+
+  .animal-card {
+    bottom: 6px;
+    padding: 7px 10px;
+    width: min(520px, calc(100vw - 24px));
+  }
+
+  .speech-bubble p {
+    font-size: 12px;
+    max-height: 44px;
+    overflow-y: auto;
   }
 }

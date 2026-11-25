@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { assetUrl } from '../utils/assetUrl.js';
 
 const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map();
 let reptileBumpTex = null;
 
@@ -137,6 +139,22 @@ export function loadGLTF(url) {
     );
   }
   return cache.get(resolved);
+}
+
+/**
+ * 后台低优先级预热 GLB 资源（最多同时预加载 2 个，避免抢占首屏带宽）
+ */
+export function prefetchGLTFs(urls = []) {
+  const queue = urls.filter((u) => u && !cache.has(assetUrl(u)));
+  if (queue.length === 0) return;
+  let cursor = 0;
+  const runNext = () => {
+    if (cursor >= queue.length) return;
+    const url = queue[cursor++];
+    loadGLTF(url).catch(() => {}).finally(runNext);
+  };
+  runNext();
+  runNext();
 }
 
 export function findAnimationClip(clips, preferredNames = []) {

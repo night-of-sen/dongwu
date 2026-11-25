@@ -34,7 +34,7 @@ function buildOrganicIslandGeometry(topR, bottomR, height, radialSegs = 64) {
  * 微观层：真实 Poly Haven 摄影级 PBR 地表/岩壁 + 写实自然树木/扫描灌木岩石 + 有机自然水潭 + 高精动物与防穿模碰撞系统
  */
 export class HabitatScene {
-  constructor(biome) {
+  constructor(biome, onProgress = null) {
     this.biome = biome;
     this.root = new THREE.Group();
     this.actors = [];
@@ -51,38 +51,51 @@ export class HabitatScene {
     this._registerCollidersAndLoadProps();
     this._buildAmbientParticles();
     this._spawnAnimals();
-    this.readyPromise = Promise.all(this.actors.map((a) => a.readyPromise));
+
+    let loadedCount = 0;
+    const total = this.actors.length;
+    onProgress?.(0, total);
+    this.readyPromise = Promise.all(
+      this.actors.map((a) =>
+        a.readyPromise.finally(() => {
+          loadedCount += 1;
+          onProgress?.(loadedCount, total);
+        })
+      )
+    );
   }
 
   _buildIslandBase() {
     const cliffMat = createRealPBRMaterial('cliff', {
-      repeat: 3.5,
+      repeat: 5.5,
       normalScale: 1.1,
       roughness: 0.94,
       color: this.biome.cliffTint ?? (this.biome.id === 'snow' ? 0xdbe9f4 : 0xd8cec2),
+      fallbackColor: this.biome.groundEdgeColor ?? 0x8d7a64,
     });
 
     const pbrKey = this.biome.pbrAlias || this.biome.id;
     const groundMat = createRealPBRMaterial(pbrKey, {
-      repeat: this.biome.id === 'snow' ? 4.0 : 4.8,
+      repeat: this.biome.id === 'snow' ? 6.2 : 7.5,
       normalScale: this.biome.id === 'snow' ? 0.6 : 0.95,
       roughness: this.biome.id === 'snow' ? 0.82 : 0.94,
       color: this.biome.groundTint ?? (this.biome.id === 'meadow' ? 0xf2fae8 : 0xffffff),
+      fallbackColor: this.biome.groundColor ?? 0x80c762,
     });
 
     if (this.biome.isWaterBiome) {
-      const seabedGeo = buildOrganicIslandGeometry(7.2, 6.6, 1.0, 64);
+      const seabedGeo = buildOrganicIslandGeometry(11.3, 10.4, 1.15, 72);
       const seabed = new THREE.Mesh(seabedGeo, groundMat);
-      seabed.position.y = -1.3;
+      seabed.position.y = -1.35;
       seabed.receiveShadow = true;
       this.root.add(seabed);
 
-      const underGeo = buildOrganicIslandGeometry(6.5, 3.4, 2.2, 48);
+      const underGeo = buildOrganicIslandGeometry(10.3, 5.2, 3.0, 56);
       const under = new THREE.Mesh(underGeo, cliffMat);
-      under.position.y = -2.85;
+      under.position.y = -3.4;
       this.root.add(under);
 
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(7.1, 0.34, 16, 64), cliffMat);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(11.15, 0.42, 16, 72), cliffMat);
       rim.rotation.x = Math.PI / 2;
       rim.position.y = -0.32;
       rim.receiveShadow = true;
@@ -92,11 +105,11 @@ export class HabitatScene {
         opacity: 0.72,
         isPond: false,
       });
-      const lagoonGeo = new THREE.CircleGeometry(7.05, 64);
+      const lagoonGeo = new THREE.CircleGeometry(11.1, 72);
       const radAttr = new Float32Array(lagoonGeo.attributes.position.count);
       const posAttr = lagoonGeo.attributes.position;
       for (let i = 0; i < posAttr.count; i++) {
-        radAttr[i] = Math.hypot(posAttr.getX(i), posAttr.getY(i)) / 7.05;
+        radAttr[i] = Math.hypot(posAttr.getX(i), posAttr.getY(i)) / 11.1;
       }
       lagoonGeo.setAttribute('aRadial', new THREE.BufferAttribute(radAttr, 1));
       this.waterMesh = new THREE.Mesh(lagoonGeo, this.waterMat);
@@ -105,31 +118,31 @@ export class HabitatScene {
       this.root.add(this.waterMesh);
 
       const b = this.biome.beachZone;
-      const beachGeo = new THREE.SphereGeometry(3.25, 36, 20, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const beachGeo = new THREE.SphereGeometry(b.radius * 1.08, 36, 20, 0, Math.PI * 2, 0, Math.PI * 0.5);
       const beach = new THREE.Mesh(beachGeo, groundMat);
-      beach.scale.set(1.0, 0.32, 1.0);
-      beach.position.set(b.x, -0.78, b.z);
+      beach.scale.set(1.0, 0.28, 1.0);
+      beach.position.set(b.x, -0.82, b.z);
       beach.receiveShadow = true;
       this.root.add(beach);
 
       this.obstacles.push({ x: b.x, z: b.z, radius: b.radius + 0.35, type: 'beach' });
     } else {
-      // 岩壁底座（侧边有机起伏）+ 顶部独立平面法线草地/雪地圆盘（彻底杜绝放射状反光条纹）
-      const topGeo = buildOrganicIslandGeometry(7.25, 6.85, 0.95, 64);
+      // 宽敞大陆岩壁底座（半径 11.4m，活动面积扩大至 2.45 倍）+ 顶部平面法线草地/雪地圆盘
+      const topGeo = buildOrganicIslandGeometry(11.4, 10.75, 1.15, 72);
       const topMesh = new THREE.Mesh(topGeo, cliffMat);
-      topMesh.position.y = -0.49;
+      topMesh.position.y = -0.59;
       topMesh.receiveShadow = true;
       this.root.add(topMesh);
 
-      const surfaceDisc = new THREE.Mesh(new THREE.CircleGeometry(7.15, 64), groundMat);
+      const surfaceDisc = new THREE.Mesh(new THREE.CircleGeometry(11.2, 72), groundMat);
       surfaceDisc.rotation.x = -Math.PI / 2;
       surfaceDisc.position.y = 0.0;
       surfaceDisc.receiveShadow = true;
       this.root.add(surfaceDisc);
 
-      const underGeo = buildOrganicIslandGeometry(6.75, 3.4, 2.25, 48);
+      const underGeo = buildOrganicIslandGeometry(10.6, 5.2, 3.1, 56);
       const underMesh = new THREE.Mesh(underGeo, cliffMat);
-      underMesh.position.y = -2.02;
+      underMesh.position.y = -2.68;
       this.root.add(underMesh);
 
       // 有机自然水潭（不规则岸线 + 河岸卵石群 + 荷叶睡莲 / 极地浮冰 + 摇曳芦苇 + 摄影级水波焦散）
@@ -190,12 +203,12 @@ export class HabitatScene {
   }
 
   _buildAmbientParticles() {
-    const count = 55;
+    const count = 72;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 13;
-      positions[i * 3 + 1] = 0.5 + Math.random() * 5.2;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 13;
+      positions[i * 3] = (Math.random() - 0.5) * 21;
+      positions[i * 3 + 1] = 0.5 + Math.random() * 5.8;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 21;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
