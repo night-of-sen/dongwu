@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>万象星野 — 儿童 3D 动物星球探索</title>
+    <meta
+      name="description"
+      content="全 3D 儿童科普互动动物星球：滑动旋转 3D 微缩星球，进入草原、极地、雨林与珊瑚海岸，观察动物自主生活，点击听动物语音自我介绍并体验 DeepSeek AI 对话。"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 3D WebGL 画布容器 -->
+      <div id="canvas-container" aria-label="3D 动物星球互动场景"></div>
+
+      <!-- 3D 投影到屏幕的动态标签层（星球地块标签 & 动物活动小气泡） -->
+      <div id="world-labels-layer"></div>
+
+      <!-- 转场云雾遮罩 -->
+      <div id="transition-veil" class="transition-veil" aria-hidden="true">
+        <div class="cloud-puff puff-1"></div>
+        <div class="cloud-puff puff-2"></div>
+        <div class="cloud-puff puff-3"></div>
+        <div class="transition-caption">
+          <span class="transition-emoji" id="transition-emoji">🌍</span>
+          <span class="transition-text" id="transition-text">正在飞往阳光草原...</span>
+        </div>
+      </div>
+
+      <!-- 拍照闪光层 -->
+      <div id="camera-flash" class="camera-flash" aria-hidden="true"></div>
+
+      <!-- 顶部导航栏 -->
+      <header class="top-hud">
+        <div class="hud-left">
+          <button id="btn-back-planet" class="toy-btn toy-btn-sky hidden" aria-label="返回 3D 星球">
+            <span class="btn-icon">🌍</span>
+            <span class="btn-label">回星球</span>
+          </button>
+          <div id="brand-badge" class="brand-badge">
+            <span class="brand-globe">🐾</span>
+            <div class="brand-copy">
+              <h1>万象星野</h1>
+              <p id="scene-subtitle">滑动旋转星球，点一个地方进去玩吧！</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-right">
+          <button id="btn-day-night" class="toy-btn toy-btn-sun" title="切换白天或夜晚">
+            <span class="btn-icon" id="day-night-icon">☀️</span>
+            <span class="btn-label" id="day-night-label">白天</span>
+          </button>
+          <button id="btn-sound" class="toy-btn toy-btn-cream" title="开关语音与音效">
+            <span class="btn-icon" id="sound-icon">🔊</span>
+          </button>
+          <button id="btn-encyclopedia" class="toy-btn toy-btn-honey" title="打开动物图鉴">
+            <span class="btn-icon">📖</span>
+            <span class="btn-label">图鉴 <strong id="discovered-count">0/20</strong></span>
+          </button>
+          <button id="btn-dev-lab" class="toy-btn toy-btn-subtle" title="家长/开发者：DeepSeek AI 成本测试">
+            <span class="btn-icon">⚙️</span>
+            <span class="btn-label">AI测试</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- 星球模式底部：儿童快捷地块导航条 -->
+      <nav id="planet-dock" class="planet-dock" aria-label="选择星球生态地块">
+        <div class="dock-hint">👆 手指滑动转动星球，或者直接点下面的小岛进入！</div>
+        <div class="biome-pills" id="biome-pills"></div>
+      </nav>
+
+      <!-- 场景模式提示条（未选中动物时显示） -->
+      <div id="habitat-tip" class="habitat-tip hidden">
+        <span>✨ 点一点到处走动的小动物，听它们自我介绍吧！</span>
+      </div>
+
+      <!-- 动物互动面板（点击动物后弹出） -->
+      <section id="animal-card" class="animal-card hidden" aria-live="polite">
+        <div class="animal-card-header">
+          <div class="animal-identity">
+            <span class="animal-avatar" id="card-emoji">🦁</span>
+            <div>
+              <div class="animal-name-row">
+                <h2 id="card-name">阿雷</h2>
+                <span class="species-tag" id="card-species">非洲狮</span>
+                <span class="mood-tag" id="card-mood">正在打招呼</span>
+              </div>
+              <p class="personality-line" id="card-personality">热情又爱睡午觉的草原小队长</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button id="btn-replay-voice" class="icon-circle-btn" title="再听一遍语音">🔊</button>
+            <button id="btn-close-card" class="icon-circle-btn close-btn" title="让它继续玩耍">✕</button>
+          </div>
+        </div>
+
+        <!-- 语音对话气泡 -->
+        <div class="speech-bubble" id="speech-bubble">
+          <div class="speaking-wave hidden" id="speaking-wave" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <p id="speech-text">你好呀小朋友！</p>
+        </div>
+
+        <!-- 预设四大话题按钮 -->
+        <div class="topic-grid" id="topic-grid">
+          <button class="topic-btn" data-topic="intro">
+            <span class="t-emoji">👋</span>
+            <span>认识我</span>
+          </button>
+          <button class="topic-btn" data-topic="food">
+            <span class="t-emoji">🍎</span>
+            <span>爱吃啥</span>
+          </button>
+          <button class="topic-btn" data-topic="trick">
+            <span class="t-emoji">🌟</span>
+            <span>看绝活</span>
+          </button>
+          <button class="topic-btn" data-topic="secret">
+            <span class="t-emoji">💡</span>
+            <span>小秘密</span>
+          </button>
+        </div>
+
+        <!-- 趣味互动 + 预留 AI 问答切换 -->
+        <div class="action-bar">
+          <button id="btn-pet" class="action-pill pill-coral">🖐️ 摸摸头</button>
+          <button id="btn-feed" class="action-pill pill-mint">🧺 喂零食</button>
+          <button id="btn-photo" class="action-pill pill-sky">📸 拍一张</button>
+          <button id="btn-toggle-ai" class="action-pill pill-ai">🤖 问它问题</button>
+        </div>
+
+        <!-- AI 自由提问抽屉（支持 DeepSeek API / 本地模拟） -->
+        <div id="ai-drawer" class="ai-drawer hidden">
+          <div class="ai-drawer-top">
+            <span class="ai-mode-badge" id="ai-mode-badge">🧪 模拟模式（可在右上角填入 DeepSeek Key 实测）</span>
+            <span class="ai-last-cost" id="ai-last-cost"></span>
+          </div>
+          <div class="ai-quick-chips" id="ai-quick-chips"></div>
+          <form id="ai-chat-form" class="ai-input-row">
+            <button type="button" id="btn-mic" class="mic-btn" title="语音提问">🎤</button>
+            <input
+              id="ai-question-input"
+              type="text"
+              maxlength="60"
+              placeholder="比如：你晚上害怕黑吗？"
+              autocomplete="off"
+            />
+            <button type="submit" id="btn-ai-send" class="send-btn">发送</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- 动物图鉴弹窗 -->
+      <div id="modal-encyclopedia" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="动物图鉴">
+        <div class="modal-panel encyclopedia-panel">
+          <div class="modal-header">
+            <div>
+              <h2>📖 我的星球动物图鉴</h2>
+              <p id="encyclopedia-summary">已认识 0 / 12 位动物朋友 · 收集星星 ⭐ 0</p>
+            </div>
+            <button class="icon-circle-btn close-btn" data-close-modal="modal-encyclopedia">✕</button>
+          </div>
+          <div id="encyclopedia-grid" class="encyclopedia-grid"></div>
+        </div>
+      </div>
+
+      <!-- 家长 / 开发者：DeepSeek API 与成本测试实验室弹窗 -->
+      <div id="modal-dev-lab" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="DeepSeek AI 成本测试面板">
+        <div class="modal-panel dev-lab-panel">
+          <div class="modal-header">
+            <div>
+              <h2>⚙️ DeepSeek AI 对话接入 & 成本测试实验室</h2>
+              <p>预留儿童 AI 对话接口：支持实测 Token 消耗、Prompt Cache 命中与千人月成本估算</p>
+            </div>
+            <button class="icon-circle-btn close-btn" data-close-modal="modal-dev-lab">✕</button>
+          </div>
+
+          <div class="dev-lab-body">
+            <div class="lab-section">
+              <h3>1. DeepSeek API 连接配置（仅存于本机浏览器 localStorage）</h3>
+              <div class="form-grid">
+                <label class="field">
+                  <span>API Base URL（OpenAI 兼容）</span>
+                  <input id="ds-base-url" type="url" value="https://api.deepseek.com" />
+                </label>
+                <label class="field">
+                  <span>模型名称（Model）</span>
+                  <select id="ds-model">
+                    <option value="deepseek-chat">deepseek-chat（推荐标准对话）</option>
+                    <option value="deepseek-flash">deepseek-flash（低成本快响应）</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner（深度推理）</option>
+                  </select>
+                </label>
+                <label class="field field-full">
+                  <span>DeepSeek API Key（留空则使用内置本地模拟模式）</span>
+                  <input id="ds-api-key" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                </label>
+              </div>
+              <div class="lab-actions-row">
+                <button id="btn-save-ds" class="toy-btn toy-btn-mint">💾 保存配置</button>
+                <button id="btn-run-benchmark" class="toy-btn toy-btn-sky">🚀 运行 3 轮儿童问答成本基准测试</button>
+                <button id="btn-clear-stats" class="toy-btn toy-btn-cream">🗑️ 清空统计</button>
+              </div>
+              <p class="lab-note">
+                提示：单次问答已通过精简儿童人设 System Prompt + 限 3 轮上下文 + <code>max_tokens: 110</code> 严控成本。正式对外发布前，请务必将 API Key 迁移至后端代理服务。
+              </p>
+            </div>
+
+            <div class="lab-section">
+              <h3>2. 单价配置（每百万 Tokens 美元价，可按官方最新价微调）</h3>
+              <div class="pricing-grid">
+                <label class="field">
+                  <span>输入（未命中缓存 $/1M）</span>
+                  <input id="price-in-miss" type="number" step="0.01" value="0.27" />
+                </label>
+                <label class="field">
+                  <span>输入（命中缓存 $/1M）</span>
+                  <input id="price-in-hit" type="number" step="0.001" value="0.07" />
+                </label>
+                <label class="field">
+                  <span>输出（$/1M）</span>
+                  <input id="price-out" type="number" step="0.01" value="1.10" />
+                </label>
+                <label class="field">
+                  <span>汇率（1 USD = ? CNY）</span>
+                  <input id="price-fx" type="number" step="0.1" value="7.2" />
+                </label>
+              </div>
+            </div>
+
+            <div class="lab-section">
+              <h3>3. 实时成本统计与规模预估</h3>
+              <div class="metrics-strip" id="cost-metrics">
+                <div class="metric-box">
+                  <span class="metric-label">累计测试轮次</span>
+                  <strong id="m-turns">0 次</strong>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">平均单轮 Token（入/出）</span>
+                  <strong id="m-avg-tokens">0 / 0</strong>
+                </div>
+                <div class="metric-box">
+                  <span class="metric-label">平均单轮成本</span>
+                  <strong id="m-avg-cost">¥0.0000</strong>
+                </div>
+                <div class="metric-box metric-highlight">
+                  <span class="metric-label">1,000 儿童 × 8 问/天 月成本</span>
+                  <strong id="m-monthly-proj">¥0.00 / 月</strong>
+                </div>
+              </div>
+              <div id="cost-log-list" class="cost-log-list">
+                <div class="empty-log">尚无测试记录。你可以点击「运行 3 轮基准测试」或直接点击小动物用「问它问题」实时测量。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 轻提示 Toast -->
+      <div id="toast" class="toast hidden" role="status"></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
